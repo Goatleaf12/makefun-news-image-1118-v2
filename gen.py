@@ -9,6 +9,9 @@ Layout follows the LIVE leaderboard top 1-2 (19 Nov 2026, ronigrv 0.991069 /
 el-net 0.991013): light masthead, huge serif date, region count bar,
 THE DAY IN NUMBERS strip, 3 illustrated leads + 10 illustrated grid cells,
 flat world map with numbered pins, ALSO in 3 columns, DATE CHECK box.
+Stat chips inside the scenes (clean bold Liberation Sans, like live rank 3
+daring-gecko-40's labels: "141 FIRED", "INTERCEPTED") mirror the top
+entries; no hand-drawn text anywhere.
 All 45 stories happened or were first reported Wed 18 Nov 2026; disputed
 claims are attributed. Stories first reported 17 Nov (Nvidia's $115.8bn
 quarter, Peltola's Alaska win, Prague train crash, Mongolia president
@@ -195,10 +198,28 @@ DATE_CHECK = ("Left out on purpose because they were first reported on 17 Nov, n
               "train crash, Mongolia\u2019s president resigning.")
 
 # ---------------------------------------------------------------- illustrations
-# Flat scenes, no text inside any of them. Each draws into box (x, y, w, h).
+# Flat scenes. Each draws into box (x, y, w, h). Each scene carries at most
+# one short stat chip in clean bold Liberation Sans (like live rank 3's
+# in-illustration labels); no hand-drawn text anywhere.
 
 def _rr(d, box, r, **kw):
     d.rounded_rectangle(box, radius=r, **kw)
+
+
+def chip_w(d, text, size):
+    return text_w(d, text, sans("Bold", size)) + 14
+
+
+def chip(d, x, y, text, size, dark=True):
+    """One short stat label inside a scene: dark navy pill w/ white text,
+    or white pill w/ navy text on dark scenes."""
+    f = sans("Bold", size)
+    tw = text_w(d, text, f)
+    pad = 7
+    bg = (30, 42, 64) if dark else (250, 250, 245)
+    fg = (255, 255, 255) if dark else (30, 42, 64)
+    d.rounded_rectangle([x, y, x + tw + pad * 2, y + size + 9], radius=4, fill=bg)
+    d.text((x + pad, y + 4), text, font=f, fill=fg)
 
 
 def scene_gulf(d, x, y, w, h):
@@ -221,6 +242,8 @@ def scene_gulf(d, x, y, w, h):
             d.ellipse([px - r, py - r, px + r, py + r], fill=col)
     d.line([x + w * 0.15, y + h * 0.80, x + w * 0.38, y + h * 0.66],
            fill=(255, 255, 255), width=2)
+    cw = chip_w(d, "INTERCEPTED", 13)
+    chip(d, x + w - cw - 6, y + 6, "INTERCEPTED", 13)
 
 
 def scene_summit(d, x, y, w, h):
@@ -250,6 +273,8 @@ def scene_summit(d, x, y, w, h):
             for i, c in enumerate(cols):
                 d.rectangle([fx, y + h * (0.18 + i * 0.08), fx + 26,
                              y + h * (0.26 + i * 0.08)], fill=c)
+    cw = chip_w(d, "SUMMIT THU", 13)
+    chip(d, x + (w - cw) / 2, y + 6, "SUMMIT THU", 13)
 
 
 def scene_cop31(d, x, y, w, h):
@@ -268,6 +293,7 @@ def scene_cop31(d, x, y, w, h):
                   fill=(200, 200, 200))
     d.ellipse([x + w * 0.78, y + h * 0.06, x + w * 0.94, y + h * 0.22],
               fill=(255, 205, 80))
+    chip(d, x + 26, y + 5, "ANTALYA", 13)
 
 
 def scene_drones_night(d, x, y, w, h):
@@ -287,6 +313,7 @@ def scene_drones_night(d, x, y, w, h):
             x + w * 0.84, y + h], fill=(200, 205, 210), width=3)
     d.line([x + w * 0.66, y + h * 0.72, x + w * 0.90, y + h * 0.72],
            fill=(200, 205, 210), width=2)
+    chip(d, x + 6, y + 6, "141 FIRED \u00b7 126 DOWNED", 10, dark=False)
 
 
 def scene_gaza(d, x, y, w, h):
@@ -309,6 +336,7 @@ def scene_gaza(d, x, y, w, h):
             ly = y + h * (0.36 + k * 0.14)
             ex0, ex1 = sorted([bx - side * 14, bx - side * 2])
             d.ellipse([ex0, ly - 4, ex1, ly + 4], fill=(110, 165, 95))
+    chip(d, x + 6, y + 6, "TRUCE AT RISK", 10)
 
 
 def scene_cyclone(d, x, y, w, h):
@@ -323,6 +351,7 @@ def scene_cyclone(d, x, y, w, h):
     for sx in (0.15, 0.3, 0.55, 0.85):
         d.line([x + w * sx, y + h * 0.10, x + w * (sx - 0.03), y + h * 0.28],
                fill=(255, 255, 255), width=2)
+    chip(d, x + 6, y + 6, "204,070 EVACUEES", 10)
 
 
 def scene_pound(d, x, y, w, h):
@@ -331,6 +360,9 @@ def scene_pound(d, x, y, w, h):
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(232, 196, 90))
     d.ellipse([cx - r * 0.8, cy - r * 0.8, cx + r * 0.8, cy + r * 0.8],
               outline=(176, 141, 44), width=3)
+    f_pound = sans("Bold", 26)
+    d.text((cx - text_w(d, "\u00a3", f_pound) / 2, cy - 15), "\u00a3",
+           font=f_pound, fill=(176, 141, 44))
     d.line([x + w * 0.62, y + h * 0.78, x + w * 0.72, y + h * 0.55,
             x + w * 0.80, y + h * 0.62, x + w * 0.94, y + h * 0.30],
            fill=(255, 90, 60), width=5)
@@ -354,6 +386,8 @@ def scene_sudan(d, x, y, w, h):
            fill=(60, 60, 60), width=5)
     d.ellipse([x + w * 0.12, y + h * 0.10, x + w * 0.26, y + h * 0.24],
               fill=(255, 205, 80))
+    cw = chip_w(d, "37 KILLED", 10)
+    chip(d, x + w - cw - 6, y + 6, "37 KILLED", 10)
 
 
 def scene_gta(d, x, y, w, h):
@@ -379,6 +413,7 @@ def scene_gta(d, x, y, w, h):
     d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(250, 250, 245))
     d.line([cx, cy, cx, cy - r * 0.7], fill=(30, 30, 30), width=3)
     d.line([cx, cy, cx + r * 0.55, cy], fill=(30, 30, 30), width=3)
+    chip(d, x + 6, y + 6, "NZ FIRST", 10, dark=False)
 
 
 def scene_anthropic(d, x, y, w, h):
@@ -396,6 +431,7 @@ def scene_anthropic(d, x, y, w, h):
     for wy in (0.12, 0.19, 0.26):
         d.rectangle([x + w * 0.76, y + h * wy, x + w * 0.92, y + h * wy + 3],
                     fill=(255, 220, 90))
+    chip(d, x + 6, y + 6, "$1.08TN", 10)
 
 
 def scene_eu(d, x, y, w, h):
@@ -414,6 +450,7 @@ def scene_eu(d, x, y, w, h):
     for fx in (0.34, 0.47, 0.60):
         d.rectangle([x + w * fx, y + h * 0.70, x + w * (fx + 0.05), y + h * 0.88],
                     fill=(150, 160, 180))
+    chip(d, x + 6, y + 6, "\u20ac45BN \u00b7 2027", 10, dark=False)
 
 
 def scene_bangladesh(d, x, y, w, h):
@@ -433,6 +470,8 @@ def scene_bangladesh(d, x, y, w, h):
         d.polygon([(px - 16, y + h * 0.98), (px - 12, py + 6),
                    (px + 12, py + 6), (px + 16, y + h * 0.98)],
                   fill=(60, 90, 140) if cx < 0.8 else (140, 60, 60))
+    cw = chip_w(d, "~300 ARRESTS", 10)
+    chip(d, x + w - cw - 6, y + 6, "~300 ARRESTS", 10)
 
 
 def scene_australia(d, x, y, w, h):
