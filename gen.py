@@ -97,13 +97,22 @@ def tracked_text(draw, x, y, text, font, fill, step=2):
     for ch in text:
         draw.text((cx, y), ch, font=font, fill=fill)
         cx += text_width(draw, ch, font) + step
+
+
+def chip_text(draw, x, y, text, font, bg, fg=(255, 255, 255), step=1,
+              pad=5, height=14):
+    """Tracked text on a filled rounded chip (rank-2 style kicker)."""
+    w = sum(text_width(draw, ch, font) + step for ch in text) + 2 * pad
+    draw.rounded_rectangle([x, y, x + w, y + height], radius=3, fill=bg)
+    tracked_text(draw, x + pad, y + 2, text, font, fg, step)
+    return w
     return cx
 
 
 def number_dot(draw, cx, cy, num, radius):
-    """Red numbered circle used for story numbers and map pins."""
-    draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius],
-                 fill=RED)
+    """Red numbered SQUARE badge, rank-2 style."""
+    draw.rectangle([cx - radius, cy - radius, cx + radius, cy + radius],
+                   fill=RED, outline=(255, 255, 255))
     font = sans_font("Bold", 11 if radius >= 10 else 9)
     label = str(num)
     tw = text_width(draw, label, font)
@@ -264,6 +273,135 @@ def paint(draw, box, ops):
                       fill=(30, 30, 30), width=3)
             draw.line([px(cx), py(cy), px(cx) + rr * 0.55, py(cy)],
                       fill=(30, 30, 30), width=3)
+        elif kind == "text":
+            # ("text", x, y, s, size, color, bold) — tiny in-scene label
+            _, x, y, s, size, color, bold = op
+            f = sans_font("Bold" if bold else "Regular", size)
+            draw.text((px(x), py(y)), s, font=f, fill=color)
+        elif kind == "dashed":
+            # ("dashed", x1, y1, x2, y2, color)
+            _, ax, ay, bx, by, color = op
+            import math as _m
+            sx, sy, ex, ey = px(ax), py(ay), px(bx), py(by)
+            n = max(2, int(_m.hypot(ex - sx, ey - sy) / 6))
+            for i in range(n):
+                t0, t1 = i / n, (i + 0.55) / n
+                draw.line([sx + (ex - sx) * t0, sy + (ey - sy) * t0,
+                           sx + (ex - sx) * t1, sy + (ey - sy) * t1],
+                          fill=color, width=1)
+        elif kind == "arrow":
+            # ("arrow", x1, y1, x2, y2, color) — line with head
+            _, ax, ay, bx, by, color = op
+            import math as _m
+            sx, sy, ex, ey = px(ax), py(ay), px(bx), py(by)
+            draw.line([sx, sy, ex, ey], fill=color, width=2)
+            ang = _m.atan2(ey - sy, ex - sx)
+            for da in (2.6, -2.6):
+                draw.line([ex, ey, ex - 8 * _m.cos(ang + da),
+                           ey - 8 * _m.sin(ang + da)], fill=color, width=2)
+        elif kind == "buildings":
+            # ("buildings", fx0, fy0, fw, fh, color, win) — skyline + windows
+            _, fx0, fy0, fw, fh, color, win = op
+            sx, sy = px(fx0), py(fy0)
+            swpx, shpx = w * fw, h * fh
+            heights = [0.55, 0.8, 0.45, 1.0, 0.65, 0.9, 0.5, 0.75]
+            step = swpx / 8
+            for i, hh in enumerate(heights):
+                rx0 = sx + i * step + 1
+                ry0 = sy + shpx * (1 - hh)
+                draw.rectangle([rx0, ry0, rx0 + step - 2, sy + shpx], fill=color)
+                for wy in range(int(ry0) + 3, int(sy + shpx) - 2, 6):
+                    for wx in range(int(rx0) + 2, int(rx0 + step) - 3, 5):
+                        draw.point((wx, wy), fill=win)
+        elif kind == "crowd":
+            # ("crowd", fx0, fy0, n, head, body) — row of heads + shoulders
+            _, fx0, fy0, n, head, body = op
+            sx, sy = px(fx0), py(fy0)
+            for i in range(n):
+                hx = sx + i * 16
+                draw.ellipse([hx - 4, sy - 4, hx + 4, sy + 4], fill=head)
+                draw.polygon([(hx - 7, sy + 14), (hx + 7, sy + 14),
+                              (hx + 4, sy + 3), (hx - 4, sy + 3)], fill=body)
+        elif kind == "bars":
+            # ("bars", fx0, fy0, fw, fh, values, color) — mini bar chart
+            _, fx0, fy0, fw, fh, vals, color = op
+            sx, sy = px(fx0), py(fy0)
+            swpx, shpx = w * fw, h * fh
+            mx = max(vals)
+            step = swpx / len(vals)
+            for i, v in enumerate(vals):
+                vh = shpx * v / mx
+                draw.rectangle([sx + i * step + 1, sy + shpx - vh,
+                                sx + (i + 1) * step - 1, sy + shpx], fill=color)
+        elif kind == "dots":
+            # ("dots", fx0, fy0, cols, rows, n1, c1, c2) — seat-count dot grid
+            _, fx0, fy0, cols, rows, n1, c1, c2 = op
+            sx, sy = px(fx0), py(fy0)
+            for i in range(cols * rows):
+                dx = sx + (i % cols) * 5
+                dy = sy + (i // cols) * 5
+                draw.ellipse([dx, dy, dx + 3, dy + 3], fill=c1 if i < n1 else c2)
+        elif kind == "plane":
+            # ("plane", cx, cy, s, color) — side view
+            _, x, y, s, color = op
+            cx, cy = px(x), py(y)
+            draw.ellipse([cx - 22 * s, cy - 5 * s, cx + 22 * s, cy + 5 * s], fill=color)
+            draw.polygon([(cx - 6 * s, cy - 4 * s), (cx + 6 * s, cy - 16 * s),
+                          (cx + 12 * s, cy - 4 * s)], fill=color)
+            draw.polygon([(cx - 14 * s, cy + 2 * s), (cx - 4 * s, cy + 12 * s),
+                          (cx + 2 * s, cy + 2 * s)], fill=color)
+            draw.polygon([(cx + 18 * s, cy - 2 * s), (cx + 26 * s, cy - 8 * s),
+                          (cx + 24 * s, cy + 2 * s)], fill=color)
+        elif kind == "ship":
+            # ("ship", cx, cy, s, color) — freighter with containers
+            _, x, y, s, color = op
+            cx, cy = px(x), py(y)
+            draw.polygon([(cx - 30 * s, cy), (cx + 30 * s, cy),
+                          (cx + 24 * s, cy + 8 * s), (cx - 24 * s, cy + 8 * s)],
+                         fill=color)
+            for i, cc in enumerate(((200, 60, 60), (60, 120, 200), (220, 180, 60))):
+                draw.rectangle([cx - 22 * s + i * 14 * s, cy - 10 * s,
+                                cx - 10 * s + i * 14 * s, cy], fill=cc)
+            draw.rectangle([cx + 20 * s, cy - 14 * s, cx + 26 * s, cy], fill=(255, 255, 255))
+        elif kind == "tank":
+            # ("tank", cx, cy, s, color)
+            _, x, y, s, color = op
+            cx, cy = px(x), py(y)
+            draw.rectangle([cx - 16 * s, cy - 8 * s, cx + 16 * s, cy + 2 * s], fill=color)
+            draw.rectangle([cx - 6 * s, cy - 14 * s, cx + 6 * s, cy - 8 * s], fill=color)
+            draw.line([cx + 6 * s, cy - 12 * s, cx + 26 * s, cy - 14 * s], fill=color, width=3)
+            for i in range(4):
+                draw.ellipse([cx - 14 * s + i * 8 * s, cy + 2 * s,
+                              cx - 8 * s + i * 8 * s, cy + 8 * s], fill=INK)
+        elif kind == "dome":
+            # ("dome", cx, cy, s, color) — capitol dome
+            _, x, y, s, color = op
+            cx, cy = px(x), py(y)
+            draw.rectangle([cx - 20 * s, cy, cx + 20 * s, cy + 6 * s], fill=color)
+            draw.arc([cx - 12 * s, cy - 18 * s, cx + 12 * s, cy + 2 * s],
+                     180, 360, fill=color, width=3)
+            draw.line([cx, cy - 18 * s, cx, cy - 24 * s], fill=color, width=2)
+            for i in (-14, -7, 0, 7, 14):
+                draw.line([cx + i * s, cy, cx + i * s, cy + 6 * s],
+                          fill=(255, 255, 255), width=1)
+        elif kind == "globe":
+            # ("globe", cx, cy, r, ocean, land)
+            _, x, y, r, ocean, land = op
+            cx, cy = px(x), py(y)
+            rr = h * r
+            draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=ocean,
+                         outline=INK, width=1)
+            draw.ellipse([cx - rr * 0.6, cy - rr * 0.7, cx - rr * 0.1, cy - rr * 0.1], fill=land)
+            draw.ellipse([cx + rr * 0.1, cy - rr * 0.2, cx + rr * 0.6, cy + rr * 0.4], fill=land)
+            draw.ellipse([cx - rr * 0.3, cy + rr * 0.3, cx + rr * 0.2, cy + rr * 0.7], fill=land)
+        elif kind == "pylon":
+            # ("pylon", x, y, s, color) — power pylon
+            _, x, y, s, color = op
+            cx, cy = px(x), py(y)
+            draw.line([cx - 8 * s, cy + 18 * s, cx, cy - 14 * s], fill=color, width=2)
+            draw.line([cx + 8 * s, cy + 18 * s, cx, cy - 14 * s], fill=color, width=2)
+            draw.line([cx - 12 * s, cy - 8 * s, cx + 12 * s, cy - 8 * s], fill=color, width=2)
+            draw.line([cx - 9 * s, cy - 2 * s, cx + 9 * s, cy - 2 * s], fill=color, width=2)
         else:
             raise ValueError("unknown shape op: %r" % (kind,))
 
@@ -329,6 +467,17 @@ REGION_BAR = [("EUROPE", 7, (43, 108, 176)), ("MIDDLE EAST", 4, (47, 133, 90)),
               ("AMERICAS", 9, (128, 90, 213)), ("OCEANIA", 4, (49, 151, 149)),
               ("WORLD", 3, (113, 128, 150))]
 
+# kicker-chip + map-pin colours, keyed by the region word in each kicker
+REGION_COLOR = {"EUROPE": (43, 108, 176), "MIDDLE EAST": (47, 133, 90),
+                "ASIA": (214, 158, 46), "AFRICA": (221, 107, 32),
+                "AMERICAS": (128, 90, 213), "OCEANIA": (49, 151, 149),
+                "WORLD": (113, 128, 150), "GLOBAL": (113, 128, 150),
+                "USA": (128, 90, 213)}
+PIN_REGION = {1: "MIDDLE EAST", 2: "ASIA", 3: "WORLD", 4: "EUROPE",
+              5: "MIDDLE EAST", 6: "ASIA", 7: "EUROPE", 8: "AFRICA",
+              9: "GLOBAL", 10: "USA", 11: "EUROPE", 12: "ASIA",
+              13: "OCEANIA"}
+
 # THE DAY IN NUMBERS strip: (big figure, small label).
 DAY_NUMBERS = [("141", "drones fired at Ukraine"), ("55", "factories shut"),
                ("~300", "arrests in Dhaka"), ("1 light-day", "Voyager 1\u2019s distance"),
@@ -353,6 +502,12 @@ SCENES = {
         ("drone", 0.30, 0.30, 9), ("drone", 0.55, 0.22, 8), ("drone", 0.72, 0.38, 7),
         ("burst", 0.38, 0.62), ("burst", 0.62, 0.72),
         ("line", [(0.15, 0.80), (0.38, 0.66)], (255, 255, 255), 2),
+        ("buildings", 0.58, 0.68, 0.42, 0.32, (28, 38, 58), (255, 200, 80)),
+        ("dashed", 0.08, 0.28, 0.28, 0.32, (255, 255, 255)),
+        ("dashed", 0.32, 0.18, 0.52, 0.24, (255, 255, 255)),
+        ("text", 0.05, 0.58, "KUWAIT", 8, (255, 255, 255), True),
+        ("text", 0.44, 0.06, "BAHRAIN", 8, INK, True),
+        ("burst", 0.70, 0.30),
         ("chip", "INTERCEPTED", 13, "tr", True),
     ],
     "summit": [
@@ -368,6 +523,12 @@ SCENES = {
         ("person", 0.68, (240, 200, 170), (31, 56, 100)),
         ("flag", 0.14, 0.18, [(206, 32, 32)]),
         ("flag", 0.86, 0.18, [(255, 255, 255), (200, 40, 40)]),
+        ("person", 0.50, (240, 210, 180), (60, 60, 60)),
+        ("text", 0.10, 0.06, "SHENZHEN", 8, INK, True),
+        ("text", 0.80, 0.06, "THURSDAY", 8, INK, True),
+        ("plane", 0.50, 0.12, 0.7, (120, 130, 145)),
+        ("ell", 0.38, 0.60, 0.015, 0.025, (255, 255, 255)),
+        ("ell", 0.62, 0.60, 0.015, 0.025, (255, 255, 255)),
         ("chip", "SUMMIT THU", 13, "tc", True),
     ],
     "cop": [
@@ -383,6 +544,12 @@ SCENES = {
         ("ell", 0.805, 0.28, 0.03, 0.06, (200, 200, 200)),
         ("ell", 0.925, 0.28, 0.03, 0.06, (200, 200, 200)),
         ("sun", 0.86, 0.14, 0.08),
+        ("text", 0.36, 0.06, "PAVILIONS", 8, (30, 90, 60), True),
+        ("ell", 0.08, 0.62, 0.04, 0.10, (60, 140, 90)),
+        ("ell", 0.16, 0.66, 0.04, 0.10, (60, 140, 90)),
+        ("ell", 0.24, 0.62, 0.04, 0.10, (60, 140, 90)),
+        ("arrow", 0.38, 0.85, 0.58, 0.62, (185, 28, 28)),
+        ("dots", 0.70, 0.90, 8, 2, 10, (90, 88, 84), (200, 200, 200)),
         ("chip", "ANTALYA", 13, "tl2", True),
     ],
     "night": [
@@ -396,6 +563,12 @@ SCENES = {
         ("burst", 0.45, 0.68),
         ("line", [(0.72, 1.0), (0.78, 0.55), (0.84, 1.0)], (200, 205, 210), 3),
         ("line", [(0.66, 0.72), (0.90, 0.72)], (200, 205, 210), 2),
+        ("dashed", 0.10, 0.30, 0.26, 0.34, (255, 255, 255)),
+        ("dashed", 0.40, 0.22, 0.56, 0.26, (255, 255, 255)),
+        ("text", 0.05, 0.08, "KYIV", 7, (255, 255, 255), True),
+        ("line", [(0.05, 0.92), (0.95, 0.92)], (100, 110, 130), 2),
+        ("text", 0.62, 0.86, "AIR DEFENCE", 7, (200, 205, 210), True),
+        ("burst", 0.82, 0.55),
         ("chip", "141 FIRED \u00b7 126 DOWNED", 10, "tl", False),
     ],
     "gaza": [
@@ -414,6 +587,9 @@ SCENES = {
         ("ell", 0.90, 0.36, 0.035, 0.05, (110, 165, 95)),
         ("ell", 0.90, 0.50, 0.035, 0.05, (110, 165, 95)),
         ("ell", 0.90, 0.64, 0.035, 0.05, (110, 165, 95)),
+        ("text", 0.33, 0.24, "UN HQ", 7, INK, True),
+        ("crowd", 0.74, 0.72, 3, (232, 190, 160), (90, 100, 120)),
+        ("text", 0.74, 0.62, "COUNCIL", 7, INK, True),
         ("chip", "TRUCE AT RISK", 10, "tl", True),
     ],
     "cyclone": [
@@ -428,6 +604,10 @@ SCENES = {
         ("line", [(0.30, 0.10), (0.27, 0.28)], (255, 255, 255), 2),
         ("line", [(0.55, 0.10), (0.52, 0.28)], (255, 255, 255), 2),
         ("line", [(0.85, 0.10), (0.82, 0.28)], (255, 255, 255), 2),
+        ("text", 0.06, 0.86, "BAY OF BENGAL", 7, (20, 60, 100), True),
+        ("text", 0.70, 0.30, "ODISHA", 7, INK, True),
+        ("arrow", 0.72, 0.78, 0.56, 0.55, (255, 255, 255)),
+        ("buildings", 0.0, 0.80, 0.55, 0.20, (190, 200, 210), (255, 255, 255)),
         ("chip", "204,070 EVACUEES", 10, "tl", True),
     ],
     "pound": [
@@ -437,6 +617,9 @@ SCENES = {
         ("poly", [(0.88, 0.24), (0.98, 0.30), (0.90, 0.38)], (255, 90, 60)),
         ("rect", 0.60, 0.08, 0.86, 0.30, (250, 250, 245)),
         ("rect", 0.66, 0.14, 0.80, 0.24, (220, 60, 50)),
+        ("bars", 0.56, 0.82, 0.38, 0.16, [2, 4, 3, 6], (255, 220, 90)),
+        ("text", 0.05, 0.08, "BANK OF ENGLAND", 7, (255, 255, 255), True),
+        ("text", 0.06, 0.86, "OCT CPI", 7, (255, 255, 255), True),
     ],
     "sudan": [
         ("bg", (238, 220, 180)),
@@ -444,6 +627,9 @@ SCENES = {
         ("sun", 0.19, 0.17, 0.07),
         ("outline", 0.55, 0.45, 0.26, 0.26, (60, 60, 60), 5),
         ("line", [(0.73, 0.63), (0.87, 0.77)], (60, 60, 60), 5),
+        ("text", 0.06, 0.08, "EL OBEID", 7, INK, True),
+        ("tank", 0.24, 0.78, 0.7, (90, 90, 90)),
+        ("pylon", 0.88, 0.45, 0.7, (90, 90, 90)),
         ("chip", "37 KILLED", 10, "tr", True),
     ],
     "gta": [
@@ -468,6 +654,9 @@ SCENES = {
         ("ell", 0.36, 0.50, 0.02, 0.04, (90, 140, 255)),
         ("ell", 0.52, 0.50, 0.02, 0.04, (255, 220, 90)),
         ("clock", 0.84, 0.24, 0.17),
+        ("text", 0.04, 0.08, "MIDNIGHT", 8, (255, 255, 255), True),
+        ("dots", 0.70, 0.55, 6, 3, 10, (255, 220, 100), (90, 110, 140)),
+        ("burst", 0.08, 0.22),
         ("chip", "NZ FIRST", 10, "tl", False),
     ],
     "ipo": [
@@ -484,6 +673,9 @@ SCENES = {
         ("rect", 0.76, 0.12, 0.92, 0.15, (255, 220, 90)),
         ("rect", 0.76, 0.19, 0.92, 0.22, (255, 220, 90)),
         ("rect", 0.76, 0.26, 0.92, 0.29, (255, 220, 90)),
+        ("text", 0.05, 0.06, "NASDAQ", 7, (60, 60, 60), True),
+        ("text", 0.52, 0.08, "$83", 11, (185, 28, 28), True),
+        ("dots", 0.05, 0.92, 12, 1, 7, (46, 134, 90), (200, 200, 200)),
         ("chip", "$1.08TN", 10, "tl", True),
     ],
     "eu": [
@@ -494,6 +686,9 @@ SCENES = {
         ("rect", 0.34, 0.70, 0.39, 0.88, (150, 160, 180)),
         ("rect", 0.47, 0.70, 0.52, 0.88, (150, 160, 180)),
         ("rect", 0.60, 0.70, 0.65, 0.88, (150, 160, 180)),
+        ("text", 0.62, 0.08, "FOR 2027", 8, (255, 255, 255), True),
+        ("dots", 0.06, 0.86, 8, 2, 10, (255, 215, 0), (200, 200, 200)),
+        ("bars", 0.74, 0.62, 0.22, 0.30, [4, 6, 8], (255, 255, 255)),
         ("chip", "\u20ac45BN \u00b7 2027", 10, "tl", False),
     ],
     "factory": [
@@ -510,6 +705,8 @@ SCENES = {
         ("poly", [(0.46, 0.98), (0.50, 0.78), (0.70, 0.78), (0.74, 0.98)], (60, 90, 140)),
         ("poly", [(0.60, 0.98), (0.64, 0.84), (0.84, 0.84), (0.88, 0.98)], (60, 90, 140)),
         ("poly", [(0.74, 0.98), (0.78, 0.78), (0.96, 0.78), (0.99, 0.98)], (140, 60, 60)),
+        ("text", 0.05, 0.06, "DHAKA", 8, INK, True),
+        ("crowd", 0.56, 0.60, 4, (60, 50, 40), (120, 110, 100)),
         ("chip", "~300 ARRESTS", 10, "tr", True),
     ],
     "court": [
@@ -524,6 +721,9 @@ SCENES = {
         ("rect", 0.50, 0.10, 0.62, 0.20, (31, 56, 100)),
         ("outline", 0.82, 0.20, 0.16, 0.16, (185, 28, 28), 5),
         ("line", [(0.71, 0.09), (0.93, 0.31)], (185, 28, 28), 5),
+        ("dome", 0.34, 0.42, 0.9, (150, 170, 190)),
+        ("text", 0.04, 0.06, "HIGH COURT", 7, INK, True),
+        ("text", 0.72, 0.94, "CANBERRA", 7, INK, True),
     ],
 }
 
@@ -597,7 +797,9 @@ def story_card(draw, box, story, big):
         kick_y, head_y, head_w, head_max, head_lh = y + 73, y + 87, w - 14, 3, 16
         deck_lh, num_r, num_xy = 11, 8, (x + 15, y + 77)
         kicker_x = x + 26
-    tracked_text(draw, kicker_x, kick_y, story["kick"], kf, RED, 1)
+    region = story["kick"].split(" \u00b7 ")[0]
+    chip_text(draw, kicker_x, kick_y - 2, story["kick"], kf,
+              REGION_COLOR.get(region, (113, 128, 150)))
     headlines = wrap_text(draw, story["head"], hf, head_w, head_max)
     end_y = draw_wrapped(draw, x + (10 if big else 7), head_y, headlines,
                          hf, INK, head_lh)
@@ -684,16 +886,17 @@ def render():
     for num in range(1, 14):
         px, py = lonlat_to_xy(*PIN_TRUE[num], map_box)
         lx, ly = lonlat_to_xy(*PIN_LABEL[num], map_box)
+        pcol = REGION_COLOR.get(PIN_REGION[num], RED)
         if (lx, ly) != (px, py):
-            d.line([px, py, lx, ly], fill=RED, width=1)
-            d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=RED)
-        d.ellipse([lx - 8, ly - 8, lx + 8, ly + 8], fill=RED,
+            d.line([px, py, lx, ly], fill=pcol, width=1)
+            d.ellipse([px - 3, py - 3, px + 3, py + 3], fill=pcol)
+        d.ellipse([lx - 8, ly - 8, lx + 8, ly + 8], fill=pcol,
                   outline=(255, 255, 255))
         nw = text_width(d, str(num), pin_f)
         d.text((lx - nw / 2, ly - 7), str(num), font=pin_f, fill=(255, 255, 255))
 
     # ---- legend + DATE CHECK box
-    d.text((MARGIN, 926), "Numbered pins mark stories 1\u201313.",
+    d.text((MARGIN, 926), "Pins are coloured by region; numbers mark stories 1\u201313.",
            font=sans_font("Italic", 9), fill=DECK)
     d.rectangle([MARGIN, 940, 350, 984], outline=RED, width=1)
     d.text((26, 943), "DATE CHECK", font=sans_font("Bold", 8), fill=RED)
